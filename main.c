@@ -24,24 +24,27 @@
 #include "key.h"
 
 #define BUFF_LEN 4096
-// 0.01 seconds
-#define DELAY 0.1*100000000 
+#define DELAY 0.1*1250000000  // 0.125 seconds
+#define EMOD(a,b) (a%b + b)%b // euclidian mod to wrap around board
 
-#define X 48
-#define Y 48
+#define X 84
+#define Y 32
 
 typedef struct {
   size_t x;
   size_t y;
-}cursor_t;
+  size_t length;
+} entity_t;
 
-
-void draw_board(const cursor_t,const size_t board[Y][X]);
+int emod(int sum, int max);
+int** init_board();
+void draw_board(const entity_t,int** board);
 void signal_handler(int);
 void reset_terminal();
 void configure_terminal();
 void read_input(keys_t*);
-void print_keys(const keys_t);
+void move_cursor(const keys_t,entity_t*);
+void move_direction(const KEY,entity_t*);
 
 static struct termios original_term, new_term;
 
@@ -56,7 +59,6 @@ reset_terminal() {
 
   tcsetattr(STDIN_FILENO,TCSANOW,&original_term);
 }
-
 // configure termios struct and set to be used
 void
 configure_terminal() {
@@ -74,14 +76,14 @@ configure_terminal() {
   tcsetattr(STDIN_FILENO,TCSANOW,&new_term);
 
   // hide cursor
-  //printf("\033[?25l");
+  printf("\033[?25l");
 
   // on program exit reset
   atexit(reset_terminal);
 }
 
 void
-draw_board(const cursor_t cursor,const size_t board[Y][X]) {
+draw_board(const entity_t cursor,int** board) {
   fflush(stdout);
   printf("\033[2J");
   printf("\x1b[H");
@@ -95,7 +97,10 @@ draw_board(const cursor_t cursor,const size_t board[Y][X]) {
   for(size_t dy = 0; dy < Y;++dy) {
     printf("|");
     for(size_t dx =0; dx < X;++dx) {
-      printf(" ");
+      if(dx == cursor.x && dy == cursor.y)
+        printf("█");
+      else
+        printf(" ");
     }
     puts("|");
   }
@@ -106,26 +111,58 @@ draw_board(const cursor_t cursor,const size_t board[Y][X]) {
  
 }
 
-// for test, show pressed keys in array
+int**
+init_board() {
+  int** board = calloc(sizeof(int*),Y);
+
+  for(size_t y = 0;y < Y; y++) {
+    board[y] = calloc(sizeof(int),X);
+  }
+
+  return board;
+}
+
 void
-print_keys(const keys_t reg_keys) {
+move_direction(const KEY direction, entity_t* cursor) {
+  switch(direction) {
+    case(UP):
+      cursor->y = EMOD(cursor->y-1,Y);
+      break;
+    case(DOWN):
+      cursor->y = EMOD(cursor->y+1,Y);
+      break;
+    case(LEFT):
+      cursor->x = EMOD(cursor->x-1,X);
+      break;
+    case(RIGHT):
+      cursor->x = EMOD(cursor->x+1,X);
+      break;
+    case(NOOP):
+      break;
+    default:
+      break;
+  }
+}
+
+void
+move_cursor(const keys_t reg_keys, entity_t* cursor) {
   for(size_t i = 0; i < reg_keys.head;++i) {
     switch(reg_keys.keys[i]) {
       case(UP):
-        puts("UP");
+        cursor->y = EMOD(cursor->y-1,Y);
         break;
       case(DOWN):
-        puts("DOWN");
+        cursor->y = EMOD(cursor->y+1,Y);
         break;
       case(LEFT):
-        puts("LEFT");
+        cursor->x = EMOD(cursor->x-1,X);
         break;
       case(RIGHT):
-        puts("RIGHT");
+        cursor->x = EMOD(cursor->x+1,X);
         break;
       case(NOOP):
         break;
-      default:
+     default:
         break;
     }
   }
@@ -141,6 +178,7 @@ read_input(keys_t* reg_keys) {
   int n = read(STDIN_FILENO,buff,BUFF_LEN);
   // read through all typed stuff
   for(int i = 0;i < n; ++i) {
+
     KEY key = NOOP;
     // SIGINT: exit the program
     if(buff[i] == 3) {
@@ -148,7 +186,6 @@ read_input(keys_t* reg_keys) {
       free(reg_keys->keys);
       exit(0);
     }
-
     // obviously 'unsafe', can be at the last point of the buffer
     // escape ascii code + '['
     if(buff[i] == 27 && buff[i+1] == 91) {
@@ -175,8 +212,6 @@ read_input(keys_t* reg_keys) {
     reg_keys->keys[reg_keys->head] = key;
     ++reg_keys->head;
   }
-  reg_keys->keys[reg_keys->head] = NOOP;
-  ++reg_keys->head;
 }
 
 void
@@ -194,14 +229,18 @@ main(void) {
 
   signal(SIGINT,signal_handler);
 
+  int** board = init_board();
+
   struct timespec req = {};
   struct timespec rem = {};
 
-  cursor_t cursor = {
+  entity_t cursor = {
     .x = 0,
     .y = 0,
+    .length = 1
   };
-  
+
+  KEY direction = RIGHT;
   
   while(1) {
 
@@ -211,14 +250,18 @@ main(void) {
       .head = 0,
     };
 
-
     // register the keys pressed 
     read_input(&keys_pressed);
-    print_keys(keys_pressed);
+    KEY new_direction = keys_pressed.keys[keys_pressed.head - 1];
+    if(new_direction != NOOP) {
+      direction = new_direction;
+    }
+    //move_cursor(keys_pressed,&cursor);
+    move_direction(direction,&cursor);
+    draw_board(cursor,board);
+    free(keys_pressed.keys);
     req.tv_nsec = DELAY;
     nanosleep(&req,&rem);
-    //draw_board(cursor);
-    free(keys_pressed.keys);
   }
 
   return 0;
