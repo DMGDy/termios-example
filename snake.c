@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <time.h>
+#include <string.h>
 #include <signal.h>
 
 #define X 24
@@ -29,6 +30,9 @@
 #define DELAY 0.1*1250000000  // 0.125 seconds
 #define EMOD(a,b) (a%b + b)%b // euclidian mod to wrap around board
 
+char* sprite[] = {"o","@","o"};
+int lose = 0;
+int score = 0;
 
 // TODO: make directional keys its own enum
 typedef enum {
@@ -51,7 +55,6 @@ typedef enum {
   TAIL,
 }ENTITY_TYPE;
 
-char* sprite[] = {"o","@","o"};
 
 typedef struct {
   size_t x;
@@ -72,13 +75,14 @@ typedef struct {
   size_t count;
 }entity_pool_t;
 
+vector valid_pos(char*** board);
 entity_t* spawn(ENTITY_TYPE,int,int,entity_t*,entity_t*,KEY);
 void check_collision(entity_pool_t*,char***);
-char*** init_board();
+char*** init_board(void);
 void draw_board(char***);
 void signal_handler(int);
 void reset_terminal();
-void configure_terminal();
+void configure_terminal(void);
 void read_input(keys_t*);
 void move_cursor(const keys_t,entity_t*);
 void render_board(const KEY,entity_pool_t*,char***);
@@ -170,12 +174,15 @@ check_collision(entity_pool_t* entity_pool,char*** board) {
     if(current_entity->type == CURSOR) {
       for(size_t j = 0;j < entity_pool->count; ++j) {
         entity_t* entity = entity_pool->pool[j];
-        if(entity->type == POINT) {
-          if((entity->vec.x == current_entity->vec.x) && (entity->vec.y == current_entity->vec.y)) {
+        if((entity->vec.x == current_entity->vec.x) && (entity->vec.y == current_entity->vec.y)) {
+          if(entity->type == POINT) {
             // if head hits point, make new point, add to tail
+            score++;
             board[entity->vec.y][entity->vec.x] = sprite[current_entity->type];
             free(entity);
-            entity_pool->pool[j] = spawn(POINT,(int)random()%X,(int)random()%Y,NULL,NULL,NOOP);
+            // make sure new point is somewhere where there isnt a tail
+            vector valid = valid_pos(board);
+            entity_pool->pool[j] = spawn(POINT,valid.x,valid.y,NULL,NULL,NOOP);
 
             entity_t* next = current_entity->tail;
             entity_t* prev = current_entity;
@@ -187,7 +194,9 @@ check_collision(entity_pool_t* entity_pool,char*** board) {
             prev->tail = next;
             entity_pool->pool[entity_pool->count] = next;
             ++entity_pool->count;
-
+          }
+          else if(entity->type == TAIL) {
+            lose = 1;
           }
         }
       }
@@ -240,6 +249,23 @@ render_board(const KEY direction, entity_pool_t* entity_pool,char*** board) {
     board[entity->vec.y][entity->vec.x] = sprite[entity->type];
   }
 
+}
+
+vector
+valid_pos(char*** board) {
+  int x = (int)rand()%X;
+  int y = (int)rand()%Y;
+  while(strcmp(board[y][x]," ") != 0) {
+    x = (int)rand()%X;
+    y = (int)rand()%Y;  
+  }
+
+  vector v = {
+    .x = x,
+    .y = y,
+    .direction = NOOP,
+  };
+  return v;
 }
 
 entity_t*
@@ -365,7 +391,7 @@ main(void) {
 
   KEY direction = RIGHT;
   
-  while(1) {
+  while(!lose) {
     keys_t keys_pressed = {
       .keys = malloc(sizeof(KEY) * BUFF_LEN),
       .cap = BUFF_LEN,
@@ -378,17 +404,23 @@ main(void) {
 
     // change direction if input provided
     if(new_direction != NOOP) {
-      direction = new_direction;
+      if(!(direction == UP && new_direction == DOWN) && !(direction == DOWN && new_direction == UP) &&
+          !(direction == RIGHT && new_direction == LEFT)&&!(direction==LEFT && new_direction == RIGHT)) {
+        direction = new_direction;
+      }
     }
 
     //move_cursor(keys_pressed,&cursor);
     render_board(direction,&entity_pool,board);
     check_collision(&entity_pool,board);
     draw_board(board);
+    printf("Score: %d\n",score);
     free(keys_pressed.keys);
     req.tv_nsec = DELAY;
     nanosleep(&req,&rem);
   }
+  printf("\nYou lose!\n");
+  reset_terminal();
 
   return 0;
 }
