@@ -1,4 +1,4 @@
-/* termios-example
+/* snake-termios
 * Copyright (C) 2024 Dylan Dy or Dylan-Matthew Garza
 * 
 * This program is free software: you can redistribute it and/or modify
@@ -22,15 +22,26 @@
 #include <string.h>
 #include <signal.h>
 
-#define X 24
-#define Y 12
+#include "config.h"
+
+#ifdef SLOW
+  #define DELAY 0.1*5000000000  
+#elif defined(MEDIUM)
+  #define DELAY 0.1*2500000000  
+#elif defined(FAST)
+  #define DELAY 0.1*1000000000
+#else
+  #define DELAY 0.1*2500000000  
+#endif
+
+
+
 
 #define BUFF_LEN 128
 #define POOL_SIZE X*Y
-#define DELAY 0.1*1250000000  // 0.125 seconds
-#define EMOD(a,b) (a%b + b)%b // euclidian mod to wrap around board
+#define  EMOD(a,b) (a%b + b)%b // euclidian mod to wrap around board
 
-char* sprite[] = {"o","@","o"};
+char* sprite[] = {"O","@","o"};
 int lose = 0;
 int score = 0;
 
