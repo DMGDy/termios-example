@@ -25,17 +25,14 @@
 #include "config.h"
 
 #ifdef SLOW
-  #define DELAY 0.1*5000000000  
+  #define DELAY 0.1*2500000000
 #elif defined(MEDIUM)
-  #define DELAY 0.1*2500000000  
+  #define DELAY 0.1*1000000000  
 #elif defined(FAST)
-  #define DELAY 0.1*1000000000
+  #define DELAY 0.1*750000000
 #else
   #define DELAY 0.1*2500000000  
 #endif
-
-
-
 
 #define BUFF_LEN 128
 #define POOL_SIZE X*Y
