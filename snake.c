@@ -31,7 +31,7 @@
 #elif defined(FAST)
   #define DELAY 0.1*750000000
 #else
-  #define DELAY 0.1*2500000000  
+  #define DELAY 0.1*1000000000  
 #endif
 
 #define BUFF_LEN 128
@@ -429,6 +429,17 @@ main(void) {
   }
   printf("\nYou lose!\n");
   reset_terminal();
+
+  // free stuff
+  for(size_t i = 0;i < entity_pool.count;++i) {
+    free(entity_pool.pool[i]);
+  }
+
+  for(size_t dy = 0;dy < Y; ++dy) {
+    free(board[dy]);
+  }
+  free(board);
+
 
   return 0;
 }
