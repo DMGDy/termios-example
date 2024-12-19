@@ -418,12 +418,12 @@ main(void) {
       }
     }
 
+    free(keys_pressed.keys);
     //move_cursor(keys_pressed,&cursor);
     render_board(direction,&entity_pool,board);
     check_collision(&entity_pool,board);
     draw_board(board);
     printf("Score: %d\n",score);
-    free(keys_pressed.keys);
     req.tv_nsec = DELAY;
     nanosleep(&req,&rem);
   }
@@ -431,13 +431,15 @@ main(void) {
   reset_terminal();
 
   // free stuff
-  for(size_t i = 0;i < entity_pool.count;++i) {
+  for(size_t i = 0;i < entity_pool.count+1;++i) {
     free(entity_pool.pool[i]);
   }
+  free(entity_pool.pool);
 
   for(size_t dy = 0;dy < Y; ++dy) {
     free(board[dy]);
   }
+
   free(board);
 
 
